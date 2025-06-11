@@ -37,7 +37,36 @@ The model uses genetic algorithms to simulate how parties evolve their positions
 pip install numpy matplotlib seaborn pandas
 ```
 
-### Basic Usage
+### Command Line Interface
+
+The easiest way to run simulations is through the command-line interface:
+
+#### Quick Test Run
+```bash
+python political_cli.py quick
+```
+
+#### Single Detailed Simulation
+```bash
+python political_cli.py single --generations 500 --num-voters 15000
+```
+
+#### Statistical Analysis (MCMC)
+```bash
+python political_cli.py mcmc --mcmc-runs 100 --generations 200
+```
+
+#### Custom Parameters
+```bash
+python political_cli.py single \
+    --num-parties 3 \
+    --num-dimensions 10 \
+    --mutation-rate 0.08 \
+    --crossover-rate 0.15 \
+    --output-dir ./my_analysis
+```
+
+### Programmatic Usage
 ```python
 from political_evolution_ga import PoliticalEvolutionSimulator
 
@@ -97,17 +126,73 @@ print(f"Party flip probability: {flip_probability:.1%}")
 - **Ideological distance measurements**
 - **Radar charts** for final positions
 
-## 🛠️ Configuration Options
+### Command Line Interface
+- **Three analysis modes**: `single`, `mcmc`, and `quick`
+- **Automatic file management** with timestamped output directories
+- **High-resolution plots** saved as PNG files (300 DPI)
+- **JSON data export** for web integration
+- **Human-readable summary reports**
+- **Full parameter control** via command-line arguments
 
-### Simulation Parameters
-```python
-simulator = PoliticalEvolutionSimulator(
-    num_parties=2,           # Number of political parties
-    num_voters=1000,         # Population size
-    num_dimensions=8,        # Policy dimensions
-    mutation_rate=0.03,      # Rate of platform evolution
-    crossover_rate=0.1       # Rate of idea adoption between parties
-)
+## 📁 Output Structure
+
+Each simulation run creates a timestamped directory containing:
+
+```
+./output/run_20250611_143022/
+├── simulation_analysis.png     # Complete visualization suite
+├── results.json               # Machine-readable data
+└── summary_report.txt         # Human-readable analysis
+```
+
+### Visualization Output
+Your results include six key visualizations:
+- **Party Platform Evolution**: Trajectories through ideological space
+- **Voter Support Over Time**: Electoral dynamics
+- **Electoral Fitness**: Party adaptation success
+- **Policy Dimension Changes**: Heatmap of position shifts
+- **Distance Between Parties**: Polarization/convergence trends
+- **Final Party Positions**: Radar chart of end states
+
+### JSON Data Format
+Perfect for web applications and further analysis:
+```json
+{
+  "simulation_parameters": {...},
+  "single_run_analysis": {...},
+  "mcmc_analysis": {...},
+  "timestamp": "2025-06-11T14:30:22",
+  "version": "1.0"
+}
+```
+
+## 🛠️ CLI Configuration Options
+
+### Single Simulation Mode
+```bash
+python political_cli.py single [options]
+
+Options:
+  --num-parties INT         Number of political parties (default: 2)
+  --num-voters INT          Number of voters (default: 10000)
+  --num-dimensions INT      Policy dimensions (default: 8)
+  --mutation-rate FLOAT     Platform mutation rate (default: 0.06)
+  --crossover-rate FLOAT    Platform crossover rate (default: 0.2)
+  --generations INT         Simulation length (default: 300)
+  --output-dir PATH         Output directory (default: ./output)
+```
+
+### MCMC Analysis Mode
+```bash
+python political_cli.py mcmc [options]
+
+Additional MCMC Options:
+  --mcmc-runs INT              Number of simulation runs (default: 50)
+  --mutation-rate-min FLOAT    Min mutation rate for variation (default: 0.04)
+  --mutation-rate-max FLOAT    Max mutation rate for variation (default: 0.07)
+  --crossover-rate-min FLOAT   Min crossover rate (default: 0.15)
+  --crossover-rate-max FLOAT   Max crossover rate (default: 0.25)
+  --save-all-runs             Save detailed results from all runs
 ```
 
 ### Policy Dimensions
@@ -123,6 +208,23 @@ The default 8-dimensional model represents:
 
 ## 📈 Example Results
 
+### Command Line Usage
+```bash
+# Quick test
+$ python political_cli.py quick
+Running single simulation...
+🎉 PARTY FLIP DETECTED!
+Flip occurred in 3 policy dimensions
+✅ Analysis complete! Results saved to: ./output/run_20250611_143022
+
+# Statistical analysis
+$ python political_cli.py mcmc --mcmc-runs 100
+MCMC Analysis Results:
+Overall flip probability: 23.0%
+Number of flips detected: 23/100
+✅ Analysis complete! Results saved to: ./output/run_20250611_143856
+```
+
 ### Historical Accuracy
 When initialized with Lincoln-era starting positions:
 - **Republicans**: Anti-slavery, pro-business, federal power
@@ -131,9 +233,10 @@ When initialized with Lincoln-era starting positions:
 The model successfully reproduces realignment patterns similar to the historical Lincoln-Reagan transformation.
 
 ### Statistical Findings
-- Major realignments occur in approximately 15-30% of simulations
+- Major realignments occur in approximately 15-30% of simulations under default parameters
 - Flip probability increases with higher mutation rates and social change
-- Multi-party systems show different stability patterns
+- Multi-party systems (3+ parties) show dramatically different stability patterns
+- Party flips are rare in multi-party systems due to coalition dynamics
 
 ## 🔍 Research Applications
 
@@ -142,16 +245,26 @@ The model successfully reproduces realignment patterns similar to the historical
 - **Realignment theory** testing
 - **Voter behavior** modeling
 - **Coalition formation** dynamics
+- **Electoral system impact** studies
 
 ### Computational Social Science
 - **Agent-based modeling** of complex systems
 - **Evolutionary approaches** to social phenomena
 - **Statistical inference** in political processes
+- **Parameter sensitivity analysis**
 
 ### Historical Analysis
 - **Counterfactual scenarios** ("What if there were 3 parties?")
 - **Parameter estimation** for historical periods
 - **Predictive modeling** of future realignments
+- **Cross-national comparisons**
+
+### Web Integration
+The JSON output format makes integration with web applications straightforward:
+- **Real-time parameter adjustment** via web interfaces
+- **Interactive visualization** of results
+- **Batch processing** of multiple scenarios
+- **RESTful API** development for simulation services
 
 ## 📚 Algorithm Details
 
@@ -177,6 +290,24 @@ Algorithmic identification based on:
 - **Opposite direction movement** between parties
 - **Multiple dimension involvement** (≥2 dimensions)
 
+## 🎯 Interpreting Results
+
+### Flip Probability Ranges
+| Probability | Interpretation | Real-World Analogy |
+|------------|----------------|-------------------|
+| 0-5% | Very stable system | Post-WWII consensus era |
+| 5-15% | Moderate instability | Normal democratic competition |
+| 15-30% | High realignment potential | Crisis periods (1930s, 1960s) |
+| 30%+ | Highly unstable system | Revolutionary periods |
+
+### Visual Indicators
+- **Crossing trajectories**: Parties swapping ideological positions
+- **Voter support shifts**: Rapid changes indicate realignment events
+- **Distance oscillations**: Polarization and convergence cycles
+- **Policy heatmaps**: Red/blue patterns show directional changes
+
+See the included `Interpreting_Your_Results.md` guide for detailed analysis instructions.
+
 ## 🤝 Contributing
 
 We welcome contributions! Areas of particular interest:
@@ -185,6 +316,7 @@ We welcome contributions! Areas of particular interest:
 - **Additional visualization methods**
 - **Multi-party system analysis**
 - **International political system modeling**
+- **Web interface development**
 
 ### Development Setup
 ```bash
@@ -216,22 +348,24 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - **Agent-based models** of voting behavior
 - **Computational political economy**
 - **Social choice theory** and genetic algorithms
+- **Duverger's Law** and party system dynamics
 
 ## 🎓 Educational Use
 
 This code is well-suited for:
-- **Political science courses** on party systems
-- **Computer science classes** on genetic algorithms
-- **Data science workshops** on agent-based modeling
+- **Political science courses** on party systems and realignment theory
+- **Computer science classes** on genetic algorithms and agent-based modeling
+- **Data science workshops** on statistical simulation and MCMC methods
 - **Interdisciplinary research** in computational social science
+- **Public policy analysis** and electoral system design
 
 ## 📞 Contact
 
 For questions, suggestions, or collaboration opportunities:
 - **Issues**: Use GitHub issues for bug reports and feature requests
 - **Discussions**: Use GitHub discussions for general questions
-- **Email**: [phill@moyer.ai](mailto:phil@moyer.ai)
+- **Email**: [phil@moyer.ai](mailto:phil@moyer.ai)
 
 ---
 
-*"The only constant in politics is change, and now we can model it."* 🗳️🧬
+*"Democracy is not just the art of the possible, but the science of the probable."* 🗳️🧬
