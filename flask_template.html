@@ -1,0 +1,801 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Political Party Evolution Simulator</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+    <style>
+        :root {
+            --primary-color: #2563eb;
+            --secondary-color: #64748b;
+            --success-color: #059669;
+            --warning-color: #d97706;
+            --error-color: #dc2626;
+            --background-color: #f8fafc;
+            --card-color: #ffffff;
+            --border-color: #e2e8f0;
+            --text-color: #1e293b;
+            --text-muted: #64748b;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background-color: var(--background-color);
+            color: var(--text-color);
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 3rem;
+        }
+
+        .header h1 {
+            font-size: 2.5rem;
+            font-weight: 700;
+            color: var(--primary-color);
+            margin-bottom: 0.5rem;
+        }
+
+        .header p {
+            font-size: 1.1rem;
+            color: var(--text-muted);
+        }
+
+        .main-content {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 2rem;
+            margin-bottom: 2rem;
+        }
+
+        .card {
+            background: var(--card-color);
+            border-radius: 12px;
+            padding: 2rem;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+            border: 1px solid var(--border-color);
+        }
+
+        .card h2 {
+            font-size: 1.5rem;
+            font-weight: 600;
+            margin-bottom: 1.5rem;
+            color: var(--text-color);
+        }
+
+        .form-group {
+            margin-bottom: 1.5rem;
+        }
+
+        .form-group label {
+            display: block;
+            font-weight: 500;
+            margin-bottom: 0.5rem;
+            color: var(--text-color);
+        }
+
+        .form-group input, .form-group select {
+            width: 100%;
+            padding: 0.75rem;
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            font-size: 1rem;
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+
+        .form-group input:focus, .form-group select:focus {
+            outline: none;
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+        }
+
+        .form-group small {
+            color: var(--text-muted);
+            font-size: 0.875rem;
+            margin-top: 0.25rem;
+            display: block;
+        }
+
+        .mode-selector {
+            display: flex;
+            gap: 0.5rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .mode-btn {
+            flex: 1;
+            padding: 0.75rem;
+            border: 2px solid var(--border-color);
+            background: white;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.2s;
+            text-align: center;
+            font-weight: 500;
+        }
+
+        .mode-btn.active {
+            border-color: var(--primary-color);
+            background: var(--primary-color);
+            color: white;
+        }
+
+        .mode-btn:hover:not(.active) {
+            border-color: var(--primary-color);
+            background: rgba(37, 99, 235, 0.05);
+        }
+
+        .mcmc-params {
+            display: none;
+            border-top: 1px solid var(--border-color);
+            padding-top: 1.5rem;
+            margin-top: 1.5rem;
+        }
+
+        .mcmc-params.show {
+            display: block;
+        }
+
+        .btn {
+            padding: 0.75rem 1.5rem;
+            border: none;
+            border-radius: 6px;
+            font-size: 1rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .btn-primary {
+            background: var(--primary-color);
+            color: white;
+        }
+
+        .btn-primary:hover:not(:disabled) {
+            background: #1d4ed8;
+        }
+
+        .btn-secondary {
+            background: var(--secondary-color);
+            color: white;
+        }
+
+        .btn-danger {
+            background: var(--error-color);
+            color: white;
+        }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .control-panel {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+        }
+
+        .status-section {
+            grid-column: 1 / -1;
+        }
+
+        .status-card {
+            background: var(--card-color);
+            border-radius: 12px;
+            padding: 2rem;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+            border: 1px solid var(--border-color);
+        }
+
+        .progress-container {
+            margin: 1.5rem 0;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 8px;
+            background: var(--border-color);
+            border-radius: 4px;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: var(--primary-color);
+            transition: width 0.3s ease;
+            width: 0%;
+        }
+
+        .progress-text {
+            text-align: center;
+            margin-top: 0.5rem;
+            font-weight: 500;
+        }
+
+        .status-indicator {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.5rem 1rem;
+            border-radius: 6px;
+            font-weight: 500;
+        }
+
+        .status-idle {
+            background: var(--border-color);
+            color: var(--text-muted);
+        }
+
+        .status-running {
+            background: rgba(37, 99, 235, 0.1);
+            color: var(--primary-color);
+        }
+
+        .status-completed {
+            background: rgba(5, 150, 105, 0.1);
+            color: var(--success-color);
+        }
+
+        .status-error {
+            background: rgba(220, 38, 38, 0.1);
+            color: var(--error-color);
+        }
+
+        .logs-container {
+            margin-top: 1.5rem;
+            max-height: 300px;
+            overflow-y: auto;
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            background: #f8fafc;
+        }
+
+        .log-entry {
+            padding: 0.5rem 1rem;
+            border-bottom: 1px solid var(--border-color);
+            font-size: 0.875rem;
+            font-family: 'Monaco', 'Menlo', monospace;
+        }
+
+        .log-entry:last-child {
+            border-bottom: none;
+        }
+
+        .log-info {
+            color: var(--text-color);
+        }
+
+        .log-success {
+            color: var(--success-color);
+        }
+
+        .log-warning {
+            color: var(--warning-color);
+        }
+
+        .log-error {
+            color: var(--error-color);
+        }
+
+        .download-section {
+            margin-top: 1.5rem;
+            padding-top: 1.5rem;
+            border-top: 1px solid var(--border-color);
+            text-align: center;
+        }
+
+        @media (max-width: 768px) {
+            .main-content {
+                grid-template-columns: 1fr;
+            }
+            
+            .header h1 {
+                font-size: 2rem;
+            }
+            
+            .container {
+                padding: 1rem;
+            }
+        }
+
+        .pulse {
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .grid-2 {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🗳️ Political Party Evolution Simulator</h1>
+            <p>Explore how political parties evolve and potentially flip their positions over time using genetic algorithms</p>
+        </div>
+
+        <div class="main-content">
+            <!-- Configuration Panel -->
+            <div class="card">
+                <h2>⚙️ Simulation Configuration</h2>
+                
+                <div class="form-group">
+                    <label>Analysis Mode</label>
+                    <div class="mode-selector">
+                        <div class="mode-btn active" data-mode="quick">Quick Test</div>
+                        <div class="mode-btn" data-mode="single">Single Run</div>
+                        <div class="mode-btn" data-mode="mcmc">MCMC Analysis</div>
+                    </div>
+                </div>
+
+                <form id="simulationForm">
+                    <!-- Basic Parameters -->
+                    <div class="grid-2">
+                        <div class="form-group">
+                            <label for="numParties">Number of Parties</label>
+                            <input type="number" id="numParties" min="2" max="10" value="2">
+                            <small>2-10 parties in the simulation</small>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="numVoters">Number of Voters</label>
+                            <input type="number" id="numVoters" min="1000" max="50000" value="10000" step="1000">
+                            <small>Population size (1K-50K)</small>
+                        </div>
+                    </div>
+
+                    <div class="grid-2">
+                        <div class="form-group">
+                            <label for="numDimensions">Policy Dimensions</label>
+                            <input type="number" id="numDimensions" min="4" max="20" value="8">
+                            <small>Number of policy issues (4-20)</small>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="generations">Generations</label>
+                            <input type="number" id="generations" min="50" max="1000" value="300" step="50">
+                            <small>Simulation length (50-1000)</small>
+                        </div>
+                    </div>
+
+                    <div class="grid-2">
+                        <div class="form-group">
+                            <label for="mutationRate">Mutation Rate</label>
+                            <input type="number" id="mutationRate" min="0.01" max="0.20" value="0.06" step="0.01">
+                            <small>Platform evolution rate</small>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="crossoverRate">Crossover Rate</label>
+                            <input type="number" id="crossoverRate" min="0.01" max="0.50" value="0.20" step="0.01">
+                            <small>Idea exchange rate</small>
+                        </div>
+                    </div>
+
+                    <!-- MCMC Parameters -->
+                    <div id="mcmcParams" class="mcmc-params">
+                        <div class="form-group">
+                            <label for="mcmcRuns">MCMC Runs</label>
+                            <input type="number" id="mcmcRuns" min="10" max="500" value="50" step="10">
+                            <small>Number of statistical runs</small>
+                        </div>
+
+                        <div class="grid-2">
+                            <div class="form-group">
+                                <label for="mutationRateMin">Min Mutation Rate</label>
+                                <input type="number" id="mutationRateMin" min="0.01" max="0.10" value="0.04" step="0.01">
+                            </div>
+
+                            <div class="form-group">
+                                <label for="mutationRateMax">Max Mutation Rate</label>
+                                <input type="number" id="mutationRateMax" min="0.05" max="0.20" value="0.07" step="0.01">
+                            </div>
+                        </div>
+
+                        <div class="grid-2">
+                            <div class="form-group">
+                                <label for="crossoverRateMin">Min Crossover Rate</label>
+                                <input type="number" id="crossoverRateMin" min="0.05" max="0.30" value="0.15" step="0.01">
+                            </div>
+
+                            <div class="form-group">
+                                <label for="crossoverRateMax">Max Crossover Rate</label>
+                                <input type="number" id="crossoverRateMax" min="0.15" max="0.50" value="0.25" step="0.01">
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="control-panel">
+                        <button type="submit" class="btn btn-primary" id="startBtn">
+                            🚀 Start Simulation
+                        </button>
+                        <button type="button" class="btn btn-danger" id="stopBtn" disabled>
+                            ⏹️ Stop
+                        </button>
+                    </div>
+                </form>
+            </div>
+
+            <!-- Information Panel -->
+            <div class="card">
+                <h2>ℹ️ About This Simulation</h2>
+                <p style="margin-bottom: 1rem;">This tool models how political parties evolve their positions over time using genetic algorithms, helping understand major realignments like the Lincoln-Reagan era flip in American politics.</p>
+                
+                <h3 style="margin: 1rem 0 0.5rem 0; font-size: 1.1rem;">Analysis Modes:</h3>
+                <ul style="margin-left: 1.5rem; margin-bottom: 1rem;">
+                    <li><strong>Quick Test:</strong> Fast demo with minimal parameters</li>
+                    <li><strong>Single Run:</strong> One detailed simulation with full analysis</li>
+                    <li><strong>MCMC Analysis:</strong> Statistical analysis across multiple runs</li>
+                </ul>
+
+                <h3 style="margin: 1rem 0 0.5rem 0; font-size: 1.1rem;">Key Parameters:</h3>
+                <ul style="margin-left: 1.5rem;">
+                    <li><strong>Mutation Rate:</strong> How quickly parties change positions</li>
+                    <li><strong>Crossover Rate:</strong> How often parties adopt competitors' ideas</li>
+                    <li><strong>Generations:</strong> Time scale of the simulation</li>
+                    <li><strong>Policy dimensions:</strong> Number of issues parties take positions on</li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- Status Section -->
+        <div class="status-section">
+            <div class="status-card">
+                <h2>📊 Simulation Status</h2>
+                
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                    <div class="status-indicator status-idle" id="statusIndicator">
+                        ⏸️ Ready to start
+                    </div>
+                    <div id="sessionInfo" style="font-size: 0.875rem; color: var(--text-muted);"></div>
+                </div>
+
+                <div class="progress-container" id="progressContainer" style="display: none;">
+                    <div class="progress-bar">
+                        <div class="progress-fill" id="progressFill"></div>
+                    </div>
+                    <div class="progress-text" id="progressText">0%</div>
+                </div>
+
+                <div class="logs-container" id="logsContainer">
+                    <div class="log-entry log-info">Waiting for simulation to start...</div>
+                </div>
+
+                <div class="download-section" id="downloadSection" style="display: none;">
+                    <h3 style="margin-bottom: 1rem;">📥 Download Results</h3>
+                    <p style="margin-bottom: 1rem; color: var(--text-muted);">
+                        Download includes: analysis plots, JSON data, and summary report
+                    </p>
+                    <button class="btn btn-secondary" id="downloadBtn">
+                        💾 Download Results ZIP
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // WebSocket connection
+        const socket = io();
+        let currentSessionId = null;
+        let currentMode = 'quick';
+
+        // DOM elements
+        const modeButtons = document.querySelectorAll('.mode-btn');
+        const mcmcParams = document.getElementById('mcmcParams');
+        const simulationForm = document.getElementById('simulationForm');
+        const startBtn = document.getElementById('startBtn');
+        const stopBtn = document.getElementById('stopBtn');
+        const statusIndicator = document.getElementById('statusIndicator');
+        const sessionInfo = document.getElementById('sessionInfo');
+        const progressContainer = document.getElementById('progressContainer');
+        const progressFill = document.getElementById('progressFill');
+        const progressText = document.getElementById('progressText');
+        const logsContainer = document.getElementById('logsContainer');
+        const downloadSection = document.getElementById('downloadSection');
+        const downloadBtn = document.getElementById('downloadBtn');
+
+        // Mode selection
+        modeButtons.forEach(btn => {
+            btn.addEventListener('click', () => {
+                modeButtons.forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                currentMode = btn.dataset.mode;
+                
+                // Show/hide MCMC parameters
+                if (currentMode === 'mcmc') {
+                    mcmcParams.classList.add('show');
+                } else {
+                    mcmcParams.classList.remove('show');
+                }
+
+                // Update form values for quick mode
+                if (currentMode === 'quick') {
+                    document.getElementById('numVoters').value = 1000;
+                    document.getElementById('numDimensions').value = 4;
+                    document.getElementById('generations').value = 50;
+                } else if (currentMode === 'single') {
+                    document.getElementById('numVoters').value = 10000;
+                    document.getElementById('numDimensions').value = 8;
+                    document.getElementById('generations').value = 300;
+                }
+            });
+        });
+
+        // Form submission
+        simulationForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            startSimulation();
+        });
+
+        // Stop button
+        stopBtn.addEventListener('click', () => {
+            if (currentSessionId) {
+                fetch('/stop_simulation', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ session_id: currentSessionId })
+                });
+            }
+        });
+
+        // Download button
+        downloadBtn.addEventListener('click', () => {
+            if (currentSessionId) {
+                window.open(`/download_results/${currentSessionId}`, '_blank');
+            }
+        });
+
+        async function startSimulation() {
+            try {
+                const params = collectFormData();
+                
+                const response = await fetch('/start_simulation', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(params)
+                });
+
+                const data = await response.json();
+                
+                if (data.session_id) {
+                    currentSessionId = data.session_id;
+                    updateSessionInfo();
+                    
+                    // Join simulation room
+                    socket.emit('join_simulation', { session_id: currentSessionId });
+                    
+                    // Update UI
+                    startBtn.disabled = true;
+                    stopBtn.disabled = false;
+                    updateStatus('running', 'Simulation starting...');
+                    progressContainer.style.display = 'block';
+                    downloadSection.style.display = 'none';
+                    clearLogs();
+                } else {
+                    throw new Error(data.error || 'Failed to start simulation');
+                }
+            } catch (error) {
+                console.error('Error starting simulation:', error);
+                addLog(`Error: ${error.message}`, 'error');
+                updateStatus('error', 'Failed to start');
+            }
+        }
+
+        function collectFormData() {
+            const data = {
+                mode: currentMode,
+                num_parties: parseInt(document.getElementById('numParties').value),
+                num_voters: parseInt(document.getElementById('numVoters').value),
+                num_dimensions: parseInt(document.getElementById('numDimensions').value),
+                mutation_rate: parseFloat(document.getElementById('mutationRate').value),
+                crossover_rate: parseFloat(document.getElementById('crossoverRate').value),
+                generations: parseInt(document.getElementById('generations').value)
+            };
+
+            if (currentMode === 'mcmc') {
+                data.mcmc_runs = parseInt(document.getElementById('mcmcRuns').value);
+                data.mutation_rate_min = parseFloat(document.getElementById('mutationRateMin').value);
+                data.mutation_rate_max = parseFloat(document.getElementById('mutationRateMax').value);
+                data.crossover_rate_min = parseFloat(document.getElementById('crossoverRateMin').value);
+                data.crossover_rate_max = parseFloat(document.getElementById('crossoverRateMax').value);
+            }
+
+            return data;
+        }
+
+        function updateStatus(status, message) {
+            statusIndicator.className = `status-indicator status-${status}`;
+            
+            const icons = {
+                idle: '⏸️',
+                running: '⚡',
+                completed: '✅',
+                error: '❌',
+                stopped: '⏹️'
+            };
+
+            statusIndicator.innerHTML = `${icons[status] || '⏸️'} ${message}`;
+            
+            if (status === 'running') {
+                statusIndicator.classList.add('pulse');
+            } else {
+                statusIndicator.classList.remove('pulse');
+            }
+        }
+
+        function updateProgress(progress) {
+            progressFill.style.width = `${progress}%`;
+            progressText.textContent = `${progress}%`;
+        }
+
+        function updateSessionInfo() {
+            if (currentSessionId) {
+                sessionInfo.textContent = `Session: ${currentSessionId.substring(0, 8)}...`;
+            }
+        }
+
+        function addLog(message, level = 'info') {
+            const logEntry = document.createElement('div');
+            logEntry.className = `log-entry log-${level}`;
+            
+            const timestamp = new Date().toLocaleTimeString();
+            logEntry.textContent = `[${timestamp}] ${message}`;
+            
+            logsContainer.appendChild(logEntry);
+            logsContainer.scrollTop = logsContainer.scrollHeight;
+
+            // Keep only last 50 entries
+            while (logsContainer.children.length > 50) {
+                logsContainer.removeChild(logsContainer.firstChild);
+            }
+        }
+
+        function clearLogs() {
+            logsContainer.innerHTML = '';
+            addLog('Simulation started...', 'info');
+        }
+
+        // Socket.IO event handlers
+        socket.on('simulation_update', (data) => {
+            if (data.session_id === currentSessionId) {
+                // Update status
+                updateStatus(data.status, getStatusMessage(data.status));
+                
+                // Update progress
+                if (data.progress !== undefined) {
+                    updateProgress(data.progress);
+                }
+                
+                // Add new logs
+                if (data.logs && data.logs.length > 0) {
+                    data.logs.forEach(log => {
+                        addLog(log.message, log.level);
+                    });
+                }
+                
+                // Handle completion
+                if (data.status === 'completed') {
+                    startBtn.disabled = false;
+                    stopBtn.disabled = true;
+                    downloadSection.style.display = 'block';
+                    addLog('🎉 Simulation completed successfully!', 'success');
+                } else if (data.status === 'error' || data.status === 'stopped') {
+                    startBtn.disabled = false;
+                    stopBtn.disabled = true;
+                }
+            }
+        });
+
+        socket.on('connect', () => {
+            console.log('Connected to server');
+        });
+
+        socket.on('disconnect', () => {
+            console.log('Disconnected from server');
+            addLog('Disconnected from server', 'warning');
+        });
+
+        function getStatusMessage(status) {
+            const messages = {
+                preparing: 'Preparing simulation...',
+                running: 'Running simulation...',
+                completed: 'Simulation completed',
+                error: 'Simulation failed',
+                stopped: 'Simulation stopped'
+            };
+            return messages[status] || status;
+        }
+
+        // Form validation
+        function validateForm() {
+            const numParties = parseInt(document.getElementById('numParties').value);
+            const numVoters = parseInt(document.getElementById('numVoters').value);
+            const generations = parseInt(document.getElementById('generations').value);
+
+            if (numParties < 2 || numParties > 10) {
+                alert('Number of parties must be between 2 and 10');
+                return false;
+            }
+
+            if (numVoters < 1000 || numVoters > 50000) {
+                alert('Number of voters must be between 1,000 and 50,000');
+                return false;
+            }
+
+            if (generations < 50 || generations > 1000) {
+                alert('Generations must be between 50 and 1,000');
+                return false;
+            }
+
+            if (currentMode === 'mcmc') {
+                const mcmcRuns = parseInt(document.getElementById('mcmcRuns').value);
+                if (mcmcRuns < 10 || mcmcRuns > 500) {
+                    alert('MCMC runs must be between 10 and 500');
+                    return false;
+                }
+
+                const mutMin = parseFloat(document.getElementById('mutationRateMin').value);
+                const mutMax = parseFloat(document.getElementById('mutationRateMax').value);
+                if (mutMin >= mutMax) {
+                    alert('Maximum mutation rate must be greater than minimum');
+                    return false;
+                }
+
+                const crossMin = parseFloat(document.getElementById('crossoverRateMin').value);
+                const crossMax = parseFloat(document.getElementById('crossoverRateMax').value);
+                if (crossMin >= crossMax) {
+                    alert('Maximum crossover rate must be greater than minimum');
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        // Add validation to form submission
+        simulationForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            if (validateForm()) {
+                startSimulation();
+            }
+        });
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', () => {
+            updateStatus('idle', 'Ready to start');
+            addLog('Web interface loaded. Configure parameters and click "Start Simulation".', 'info');
+        });
+    </script>
+</body>
+</html>
