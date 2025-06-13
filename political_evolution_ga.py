@@ -1,5 +1,5 @@
 ###############################################################################
-# Political2025 - analyze party flip behaviors
+# Political2025 - analyze party flip behaviors with conformity-based social influence
 #
 # Inspired by Amy Shira Teitel.
 #
@@ -22,6 +22,7 @@ from typing import List, Tuple, Dict
 import random
 from collections import defaultdict
 import pandas as pd
+from sklearn.neighbors import NearestNeighbors  # For efficient k-NN search
 
 # Third-party modules
 
@@ -50,10 +51,13 @@ class PoliticalPlatform:
 
 @dataclass
 class Voter:
-    """Represents an individual voter with preferences"""
+    """Represents an individual voter with preferences and social influence traits"""
     preferences: np.ndarray  # Personal policy preferences
     party_affiliation: int   # Which party they currently support
     loyalty: float          # How resistant to changing parties (0-1)
+    conformity: float       # Social influence measure (-1.0 to 1.0)
+                           # Positive = conformist (moves toward neighbors)
+                           # Negative = anti-conformist (moves away from neighbors)
     
 class PoliticalEvolutionSimulator:
     def __init__(self, 
@@ -61,13 +65,17 @@ class PoliticalEvolutionSimulator:
                  num_voters: int = 10000,
                  num_dimensions: int = 8,  # Number of policy dimensions
                  mutation_rate: float = 0.02,
-                 crossover_rate: float = 0.1):
+                 crossover_rate: float = 0.1,
+                 conformity_neighbors: int = 5,  # Number of neighbors for social influence
+                 conformity_strength: float = 0.02):  # Scaling factor for conformity movement
         
         self.num_parties = num_parties
         self.num_voters = num_voters
         self.num_dimensions = num_dimensions
         self.mutation_rate = mutation_rate
         self.crossover_rate = crossover_rate
+        self.conformity_neighbors = conformity_neighbors
+        self.conformity_strength = conformity_strength
         
         # Initialize parties with distinct starting positions
         self.parties = self._initialize_parties()
@@ -102,7 +110,7 @@ class PoliticalEvolutionSimulator:
         return parties
     
     def _initialize_voters(self) -> List[Voter]:
-        """Initialize voters with diverse preferences and loyalties"""
+        """Initialize voters with diverse preferences, loyalties, and conformity traits"""
         voters = []
         
         for _ in range(self.num_voters):
@@ -115,7 +123,18 @@ class PoliticalEvolutionSimulator:
             # Loyalty varies - some voters are very loyal, others swing easily
             loyalty = np.random.beta(2, 2)  # Beta distribution gives realistic loyalty spread
             
-            voters.append(Voter(preferences, closest_party, loyalty))
+            # Conformity measure: distributed around 0 with realistic spread
+            # Most people are somewhat conformist, fewer are strongly anti-conformist
+            # MODIFICATION POINT: Change distribution parameters here for different conformity patterns
+            conformity = np.random.normal(0.1, 0.4)  # Slight conformist bias with wide spread
+            conformity = np.clip(conformity, -1.0, 1.0)  # Ensure bounds
+            
+            # Alternative conformity distributions you could try:
+            # conformity = np.random.normal(0, 0.3)  # Centered at 0, narrower spread
+            # conformity = np.random.beta(2, 2) * 2 - 1  # Beta distribution mapped to [-1,1]
+            # conformity = np.random.uniform(-1, 1)  # Uniform distribution
+            
+            voters.append(Voter(preferences, closest_party, loyalty, conformity))
         
         return voters
     
@@ -131,6 +150,23 @@ class PoliticalEvolutionSimulator:
                 closest_party = party.party_id
         
         return closest_party
+    
+    def _find_nearest_neighbors(self, voter_idx: int) -> List[int]:
+        """Find k nearest neighbors for a voter in preference space"""
+        target_voter = self.voters[voter_idx]
+        
+        # Calculate distances to all other voters
+        distances = []
+        for i, other_voter in enumerate(self.voters):
+            if i != voter_idx:  # Don't include self
+                distance = np.linalg.norm(target_voter.preferences - other_voter.preferences)
+                distances.append((distance, i))
+        
+        # Sort by distance and return k nearest
+        distances.sort(key=lambda x: x[0])
+        neighbor_indices = [idx for _, idx in distances[:self.conformity_neighbors]]
+        
+        return neighbor_indices
     
     def _calculate_fitness(self, party: PoliticalPlatform) -> float:
         """Calculate party fitness based on voter support and electoral success"""
@@ -204,13 +240,37 @@ class PoliticalEvolutionSimulator:
                     voter.party_affiliation = best_party_id
     
     def _evolve_voter_preferences(self):
-        """Slowly evolve voter preferences over time (generational change, major events)"""
-        for voter in self.voters:
-            # Small random drift in preferences
+        """Evolve voter preferences through random drift and social influence"""
+        for i, voter in enumerate(self.voters):
+            # 1. Random drift (original mechanism)
             if random.random() < 0.05:  # 5% chance per generation
                 drift = np.random.normal(0, 0.05, self.num_dimensions)
                 voter.preferences += drift
                 voter.preferences = np.clip(voter.preferences, -2, 2)
+            
+            # 2. Social influence based on conformity
+            if abs(voter.conformity) > 0.01:  # Only apply if conformity is meaningful
+                # Find nearest neighbors
+                neighbor_indices = self._find_nearest_neighbors(i)
+                
+                if neighbor_indices:  # Ensure we have neighbors
+                    # Calculate centroid of neighbors' preferences
+                    neighbor_preferences = np.array([
+                        self.voters[idx].preferences for idx in neighbor_indices
+                    ])
+                    neighbor_centroid = np.mean(neighbor_preferences, axis=0)
+                    
+                    # Calculate direction vector from voter to centroid
+                    direction_to_centroid = neighbor_centroid - voter.preferences
+                    
+                    # Apply conformity-based movement
+                    # Positive conformity: move toward centroid
+                    # Negative conformity: move away from centroid
+                    movement = voter.conformity * self.conformity_strength * direction_to_centroid
+                    
+                    # Apply the movement
+                    voter.preferences += movement
+                    voter.preferences = np.clip(voter.preferences, -2, 2)
     
     def simulate_generation(self):
         """Simulate one generation of political evolution"""
@@ -232,7 +292,7 @@ class PoliticalEvolutionSimulator:
         
         self.parties = new_parties
         
-        # Gradually evolve voter preferences
+        # Evolve voter preferences (now includes social influence)
         self._evolve_voter_preferences()
         
         # Record history
@@ -257,6 +317,7 @@ class PoliticalEvolutionSimulator:
     def run_simulation(self, generations: int = 200):
         """Run the full simulation"""
         print(f"Running political evolution simulation with {self.num_parties} parties for {generations} generations...")
+        print(f"Social influence: {self.conformity_neighbors} neighbors, strength={self.conformity_strength}")
         
         # Record initial state
         self._record_generation()
@@ -293,6 +354,18 @@ class PoliticalEvolutionSimulator:
         analysis['position_changes'] = position_changes
         analysis['generations'] = len(self.party_history)
         
+        # Analyze voter conformity distribution
+        conformity_stats = {
+            'mean': np.mean([v.conformity for v in self.voters]),
+            'std': np.std([v.conformity for v in self.voters]),
+            'min': np.min([v.conformity for v in self.voters]),
+            'max': np.max([v.conformity for v in self.voters]),
+            'conformist_count': len([v for v in self.voters if v.conformity > 0.1]),
+            'anticonformist_count': len([v for v in self.voters if v.conformity < -0.1]),
+            'neutral_count': len([v for v in self.voters if abs(v.conformity) <= 0.1])
+        }
+        analysis['conformity_stats'] = conformity_stats
+        
         # Identify potential flips
         if self.num_parties == 2:
             party_0_change = position_changes['party_0']['dimension_changes']
@@ -313,7 +386,7 @@ class PoliticalEvolutionSimulator:
     def plot_results(self):
         """Generate comprehensive visualization of results"""
         fig, axes = plt.subplots(2, 3, figsize=(20, 12))
-        fig.suptitle('Political Party Evolution Simulation Results', fontsize=16)
+        fig.suptitle('Political Party Evolution Simulation Results (with Social Influence)', fontsize=16)
         
         # 1. Party Position Evolution Over Time
         ax1 = axes[0, 0]
@@ -349,18 +422,14 @@ class PoliticalEvolutionSimulator:
         ax2.legend()
         ax2.grid(True, alpha=0.3)
         
-        # 3. Electoral Fitness Over Time
+        # 3. Conformity Distribution
         ax3 = axes[0, 2]
-        for party_id in range(self.num_parties):
-            fitness_history = [
-                self.election_results_history[g].get(party_id, 0)
-                for g in range(len(self.election_results_history))
-            ]
-            ax3.plot(fitness_history, label=f'Party {party_id}', linewidth=2)
-        
-        ax3.set_xlabel('Generation')
-        ax3.set_ylabel('Electoral Fitness')
-        ax3.set_title('Party Electoral Success')
+        conformity_values = [v.conformity for v in self.voters]
+        ax3.hist(conformity_values, bins=30, alpha=0.7, color='skyblue', edgecolor='black')
+        ax3.axvline(0, color='red', linestyle='--', label='Neutral')
+        ax3.set_xlabel('Conformity Measure')
+        ax3.set_ylabel('Number of Voters')
+        ax3.set_title('Voter Conformity Distribution')
         ax3.legend()
         ax3.grid(True, alpha=0.3)
         
@@ -451,8 +520,10 @@ def run_mcmc_analysis(num_runs: int = 50, num_parties: int = 2, generations: int
         simulator = PoliticalEvolutionSimulator(
             num_parties=num_parties,
             num_voters=10000,
-            mutation_rate=random.uniform(0.01, 0.05),  # Vary parameters
-            crossover_rate=random.uniform(0.05, 0.15)
+            mutation_rate=random.uniform(0.04, 0.07),  # Vary parameters
+            crossover_rate=random.uniform(0.15, 0.25),
+            conformity_neighbors=5,  # Keep consistent for now
+            conformity_strength=random.uniform(0.015, 0.025)  # Vary social influence
         )
         
         analysis = simulator.run_simulation(generations)
@@ -476,7 +547,7 @@ def run_mcmc_analysis(num_runs: int = 50, num_parties: int = 2, generations: int
 def main():
     # Single detailed simulation
     print("="*60)
-    print("POLITICAL PARTY EVOLUTION GENETIC ALGORITHM")
+    print("POLITICAL PARTY EVOLUTION WITH SOCIAL INFLUENCE")
     print("="*60)
     
     # Run single simulation for detailed analysis
@@ -484,8 +555,10 @@ def main():
         num_parties=2,
         num_voters=10000,
         num_dimensions=8,
-        mutation_rate=0.03,
-        crossover_rate=0.1
+        mutation_rate=0.06,
+        crossover_rate=0.2,
+        conformity_neighbors=5,
+        conformity_strength=0.02
     )
     
     analysis = simulator.run_simulation(generations=300)
@@ -502,6 +575,14 @@ def main():
     for party, changes in analysis['position_changes'].items():
         print(f"{party}: Total change = {changes['total_change']:.2f}")
     
+    # Show conformity statistics
+    print(f"\nConformity Statistics:")
+    conf_stats = analysis['conformity_stats']
+    print(f"Mean conformity: {conf_stats['mean']:.3f}")
+    print(f"Conformists (>0.1): {conf_stats['conformist_count']}")
+    print(f"Anti-conformists (<-0.1): {conf_stats['anticonformist_count']}")
+    print(f"Neutral: {conf_stats['neutral_count']}")
+    
     # Generate visualizations
     simulator.plot_results()
     
@@ -510,7 +591,7 @@ def main():
     print("MCMC STATISTICAL ANALYSIS")
     print("="*60)
     
-    mcmc_analyses, flip_prob = run_mcmc_analysis(num_runs=50, generations=200)
+    mcmc_analyses, flip_prob = run_mcmc_analysis(num_runs=50, num_parties=2, generations=300)
     
     print(f"\nStatistical Summary:")
     print(f"Overall flip probability: {flip_prob:.1%}")
@@ -528,4 +609,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
